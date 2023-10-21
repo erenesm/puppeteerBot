@@ -17,7 +17,6 @@ import { mkdtemp } from 'fs/promises';
 import path from 'path';
 import { computeSystemExecutablePath, Browser as SupportedBrowsers, ChromeReleaseChannel as BrowsersChromeReleaseChannel, } from '@puppeteer/browsers';
 import { debugError } from '../common/util.js';
-import { USE_TAB_TARGET } from '../environment.js';
 import { assert } from '../util/assert.js';
 import { ProductLauncher } from './ProductLauncher.js';
 import { rm } from './util/fs.js';
@@ -114,16 +113,22 @@ export class ChromeLauncher extends ProductLauncher {
     }
     defaultArgs(options = {}) {
         // See https://github.com/GoogleChrome/chrome-launcher/blob/main/docs/chrome-flags-for-tools.md
+        // Merge default disabled features with user-provided ones, if any.
         const disabledFeatures = [
             'Translate',
             // AcceptCHFrame disabled because of crbug.com/1348106.
             'AcceptCHFrame',
             'MediaRouter',
             'OptimizationHints',
+            // https://crbug.com/1492053
+            'ProcessPerSiteUpToMainFrameThreshold',
+            ...getFeatures('--disable-features', options.args),
         ];
-        if (!USE_TAB_TARGET) {
-            disabledFeatures.push('Prerender2');
-        }
+        // Merge default enabled features with user-provided ones, if any.
+        const enabledFeatures = [
+            'NetworkServiceInProcess2',
+            ...getFeatures('--enable-features', options.args),
+        ];
         const chromeArguments = [
             '--allow-pre-commit-input',
             '--disable-background-networking',
@@ -148,7 +153,7 @@ export class ChromeLauncher extends ProductLauncher {
             // TODO(sadym): remove '--enable-blink-features=IdleDetection' once
             // IdleDetection is turned on by default.
             '--enable-blink-features=IdleDetection',
-            '--enable-features=NetworkServiceInProcess2',
+            `--enable-features=${enabledFeatures.join(',')}`,
             '--export-tagged-pdf',
             '--force-color-profile=srgb',
             '--metrics-recording-only',
@@ -197,5 +202,29 @@ function convertPuppeteerChannelToBrowsersChannel(channel) {
         case 'chrome-canary':
             return BrowsersChromeReleaseChannel.CANARY;
     }
+}
+/**
+ * Extracts all features from the given command-line flag
+ * (e.g. `--enable-features`, `--enable-features=`).
+ *
+ * Example input:
+ * ["--enable-features=NetworkService,NetworkServiceInProcess", "--enable-features=Foo"]
+ *
+ * Example output:
+ * ["NetworkService", "NetworkServiceInProcess", "Foo"]
+ *
+ * @internal
+ */
+export function getFeatures(flag, options = []) {
+    return options
+        .filter(s => {
+        return s.startsWith(flag.endsWith('=') ? flag : `${flag}=`);
+    })
+        .map(s => {
+        return s.split(new RegExp(`${flag}` + '=\\s*'))[1]?.trim();
+    })
+        .filter(s => {
+        return s;
+    });
 }
 //# sourceMappingURL=ChromeLauncher.js.map

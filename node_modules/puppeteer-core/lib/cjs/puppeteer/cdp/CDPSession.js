@@ -47,7 +47,8 @@ class CdpCDPSession extends CDPSession_js_1.CDPSession {
     }
     parentSession() {
         if (!this.#parentSessionId) {
-            return;
+            // To make it work in Firefox that does not have parent (tab) sessions.
+            return this;
         }
         const parent = this.#connection?.session(this.#parentSessionId);
         return parent ?? undefined;

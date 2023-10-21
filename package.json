@@ -13,6 +13,8 @@
   "author": "erenesm",
   "license": "ISC",
   "dependencies": {
-    "puppeteer": "^21.3.8"
+    "image-downloader": "^4.3.0",
+    "puppeteer": "^21.3.8",
+    "slugify": "^1.6.6"
   }
 }

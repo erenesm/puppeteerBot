@@ -18,12 +18,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ChromeLauncher = void 0;
+exports.getFeatures = exports.ChromeLauncher = void 0;
 const promises_1 = require("fs/promises");
 const path_1 = __importDefault(require("path"));
 const browsers_1 = require("@puppeteer/browsers");
 const util_js_1 = require("../common/util.js");
-const environment_js_1 = require("../environment.js");
 const assert_js_1 = require("../util/assert.js");
 const ProductLauncher_js_1 = require("./ProductLauncher.js");
 const fs_js_1 = require("./util/fs.js");
@@ -120,16 +119,22 @@ class ChromeLauncher extends ProductLauncher_js_1.ProductLauncher {
     }
     defaultArgs(options = {}) {
         // See https://github.com/GoogleChrome/chrome-launcher/blob/main/docs/chrome-flags-for-tools.md
+        // Merge default disabled features with user-provided ones, if any.
         const disabledFeatures = [
             'Translate',
             // AcceptCHFrame disabled because of crbug.com/1348106.
             'AcceptCHFrame',
             'MediaRouter',
             'OptimizationHints',
+            // https://crbug.com/1492053
+            'ProcessPerSiteUpToMainFrameThreshold',
+            ...getFeatures('--disable-features', options.args),
         ];
-        if (!environment_js_1.USE_TAB_TARGET) {
-            disabledFeatures.push('Prerender2');
-        }
+        // Merge default enabled features with user-provided ones, if any.
+        const enabledFeatures = [
+            'NetworkServiceInProcess2',
+            ...getFeatures('--enable-features', options.args),
+        ];
         const chromeArguments = [
             '--allow-pre-commit-input',
             '--disable-background-networking',
@@ -154,7 +159,7 @@ class ChromeLauncher extends ProductLauncher_js_1.ProductLauncher {
             // TODO(sadym): remove '--enable-blink-features=IdleDetection' once
             // IdleDetection is turned on by default.
             '--enable-blink-features=IdleDetection',
-            '--enable-features=NetworkServiceInProcess2',
+            `--enable-features=${enabledFeatures.join(',')}`,
             '--export-tagged-pdf',
             '--force-color-profile=srgb',
             '--metrics-recording-only',
@@ -205,4 +210,29 @@ function convertPuppeteerChannelToBrowsersChannel(channel) {
             return browsers_1.ChromeReleaseChannel.CANARY;
     }
 }
+/**
+ * Extracts all features from the given command-line flag
+ * (e.g. `--enable-features`, `--enable-features=`).
+ *
+ * Example input:
+ * ["--enable-features=NetworkService,NetworkServiceInProcess", "--enable-features=Foo"]
+ *
+ * Example output:
+ * ["NetworkService", "NetworkServiceInProcess", "Foo"]
+ *
+ * @internal
+ */
+function getFeatures(flag, options = []) {
+    return options
+        .filter(s => {
+        return s.startsWith(flag.endsWith('=') ? flag : `${flag}=`);
+    })
+        .map(s => {
+        return s.split(new RegExp(`${flag}` + '=\\s*'))[1]?.trim();
+    })
+        .filter(s => {
+        return s;
+    });
+}
+exports.getFeatures = getFeatures;
 //# sourceMappingURL=ChromeLauncher.js.map

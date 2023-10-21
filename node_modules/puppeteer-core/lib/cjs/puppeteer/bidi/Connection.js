@@ -141,8 +141,9 @@ class BidiConnection extends EventEmitter_js_1.EventEmitter {
             return;
         }
         this.#closed = true;
-        this.#transport.onmessage = undefined;
-        this.#transport.onclose = undefined;
+        // Both may still be invoked and produce errors
+        this.#transport.onmessage = () => { };
+        this.#transport.onclose = () => { };
         this.#callbacks.clear();
     }
     dispose() {
